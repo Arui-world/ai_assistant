@@ -1,0 +1,153 @@
+<style>
+    .ai-app-wrapper { display: flex; flex-direction: column; gap: var(--margin-md); height: calc(100vh - var(--navbar-height) - var(--page-head-height) - 28px); min-height: 620px; padding: var(--padding-md); background: var(--bg-color); }
+    .ai-chat-container { display: flex; flex: 1; min-height: 0; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); overflow: hidden; }
+    .ai-left-panel { width: 280px; background-color: var(--card-bg); border-right: 1px solid var(--border-color); padding: var(--padding-lg); display: flex; flex-direction: column; overflow-y: auto; }
+    .panel-header { font-weight: 600; color: var(--heading-color); margin-bottom: var(--margin-sm); font-size: var(--text-base); display: flex; align-items: center; gap: var(--margin-xs); }
+    .ai-setting-item { margin-bottom: var(--margin-md); }
+    .ai-setting-item label { display: block; font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--margin-xs); font-weight: 600; }
+    .ai-setting-item select, .ai-setting-item input { width: 100%; height: var(--input-height); padding: 4px 8px; border: 1px solid var(--border-color); border-radius: var(--border-radius); font-size: var(--text-sm); outline: none; background: var(--control-bg); color: var(--text-color); }
+    .ai-setting-item select:focus, .ai-setting-item input:focus, .chat-input:focus { border-color: var(--primary); box-shadow: var(--focus-default); }
+    .ai-setting-item input[readonly] { background: var(--disabled-control-bg); color: var(--text-muted); }
+    .context-tag { background-color: var(--subtle-fg); color: var(--text-color); padding: 6px 10px; border-radius: var(--border-radius); font-size: var(--text-sm); margin-bottom: var(--margin-xs); }
+    .ai-panel-divider { border: 0; border-top: 1px solid var(--border-color); margin: var(--margin-md) 0; }
+    .ai-panel-divider.is-dashed { border-top-style: dashed; }
+
+    .module-nav-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--margin-sm); margin-top: var(--margin-sm); }
+    .module-icon-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 72px; background: var(--control-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--padding-sm); text-decoration: none; color: var(--text-color); transition: background-color 0.15s ease, border-color 0.15s ease; cursor: pointer; }
+    .module-icon-btn:hover { background: var(--fg-hover-color); border-color: var(--gray-400); color: var(--heading-color); text-decoration: none; }
+    .module-icon-btn .module-icon { font-size: 20px; line-height: 1; }
+    .module-icon-text { font-size: var(--text-xs); font-weight: 600; margin-top: var(--margin-xs); }
+
+    .ai-main-chat { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; background: var(--fg-color); }
+    .chat-history { flex: 1; min-height: 0; padding: var(--padding-lg); overflow-y: auto; background-color: var(--fg-color); }
+    .chat-message { display: flex; margin-bottom: var(--margin-md); }
+    .chat-message.user { justify-content: flex-end; }
+    .chat-message.ai { justify-content: flex-start; }
+    .chat-bubble { max-width: min(760px, 85%); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 10px 14px; background: var(--card-bg); color: var(--text-color); font-size: var(--text-sm); line-height: 1.55; }
+    .chat-message.user .chat-bubble { background: var(--primary); border-color: var(--primary); color: var(--white, #fff); }
+    .chat-loading { color: var(--text-muted); font-size: var(--text-sm); }
+
+    .quick-actions { display: flex; flex-wrap: wrap; gap: var(--margin-sm); padding: var(--padding-sm) var(--padding-lg); background-color: var(--card-bg); border-top: 1px solid var(--border-color); align-items: center; }
+    .quick-btn { height: var(--btn-height); background-color: var(--control-bg); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: var(--border-radius); font-size: var(--text-sm); color: var(--text-color); cursor: pointer; white-space: nowrap; transition: background-color 0.15s ease, border-color 0.15s ease; font-weight: 500; }
+    .quick-btn:hover { background-color: var(--fg-hover-color); color: var(--heading-color); }
+    .dropdown { position: relative; display: inline-block; }
+    .dropdown-content { display: none; position: absolute; bottom: 100%; left: 0; background-color: var(--card-bg); min-width: 190px; max-height: 280px; overflow-y: auto; box-shadow: var(--shadow-md); z-index: 9999; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); margin-bottom: var(--margin-xs); }
+    .dropdown-content a { color: var(--text-color); padding: 8px 12px; text-decoration: none; display: block; font-size: var(--text-sm); transition: background-color 0.15s ease; font-weight: 400; border-bottom: 1px solid var(--border-color); }
+    .dropdown-content a:last-child { border-bottom: none; }
+    .dropdown-content a:hover { background-color: var(--fg-hover-color); color: var(--heading-color); text-decoration: none; }
+    .dropdown.show-menu .dropdown-content { display: block; }
+    .dropdown.show-menu .quick-btn { background-color: var(--fg-hover-color); }
+
+    .chat-input-area { display: flex; gap: var(--margin-sm); padding: var(--padding-md) var(--padding-lg); background-color: var(--card-bg); border-top: 1px solid var(--border-color); }
+    .chat-input { flex: 1; height: var(--input-height); padding: 4px 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius); outline: none; font-size: var(--text-sm); background: var(--control-bg); color: var(--text-color); }
+    .send-btn { min-width: 72px; }
+    .ai-log-panel { height: 132px; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); display: flex; flex-direction: column; overflow: hidden; }
+    .log-header { background-color: var(--subtle-fg); padding: 8px var(--padding-md); font-weight: 600; font-size: var(--text-sm); color: var(--heading-color); border-bottom: 1px solid var(--border-color); }
+    .log-content { flex: 1; padding: 10px var(--padding-md); overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: var(--text-xs); background-color: var(--gray-900); }
+    .log-sys { color: var(--gray-400); } .log-success { color: var(--green-300, #9de5b3); } .log-warn { color: var(--yellow-300, #f5d76e); } .log-error { color: var(--red-300, #f8a5a5); }
+
+    .ai-reply-content { line-height: 1.6; font-size: var(--text-sm); color: var(--text-color); }
+    .ai-reply-content p { margin: 0 0 10px 0; }
+    .ai-reply-content p:last-child { margin-bottom: 0; }
+    .ai-reply-content strong { color: var(--heading-color); font-weight: 600; }
+    .ai-reply-content ul, .ai-reply-content ol { padding-left: 20px; margin-top: 5px; margin-bottom: 10px; }
+    .ai-reply-content pre { background-color: var(--gray-900); color: var(--gray-100); padding: 12px; border-radius: var(--border-radius); overflow-x: auto; margin: 10px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .ai-reply-content code { background-color: var(--subtle-fg); color: var(--red-600); padding: 2px 6px; border-radius: var(--border-radius); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: var(--text-xs); }
+    .ai-reply-content pre code { background-color: transparent; color: inherit; padding: 0; }
+    .ai-reply-content a { color: var(--primary); text-decoration: none; font-weight: 500; border-bottom: 1px solid transparent; transition: border-color 0.15s ease; }
+    .ai-reply-content a:hover { border-bottom-color: var(--primary); }
+
+    .action-export-wrap { margin-top: var(--margin-md); border-top: 1px dashed var(--border-color); padding-top: var(--padding-sm); }
+    .action-export-btn { display: inline-flex; align-items: center; gap: var(--margin-xs); }
+
+    @media (max-width: 991px) {
+        .ai-app-wrapper { height: auto; min-height: 0; }
+        .ai-chat-container { flex-direction: column; }
+        .ai-left-panel { width: 100%; max-height: none; border-right: 0; border-bottom: 1px solid var(--border-color); }
+        .ai-main-chat { min-height: 560px; }
+    }
+</style>
+
+<div class="ai-app-wrapper">
+    <div class="ai-chat-container">
+        <div class="ai-left-panel">
+            <div class="panel-header" data-i18n="ai_config_title">🤖 AI 引擎配置</div>
+            <div class="ai-setting-item">
+                <label data-i18n="lbl_platform">选择 AI 平台</label>
+                <select id="ai-platform">
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="qwen" selected>Qwen 通义千问</option>
+                    <option value="glm4">GLM-4 智谱</option>
+                </select>
+            </div>
+            <div class="ai-setting-item"><label data-i18n="lbl_url">Base URL 接口地址</label><input type="text" id="ai-base-url" value="https://dashscope.aliyuncs.com/compatible-mode/v1" readonly></div>
+            <div class="ai-setting-item"><label data-i18n="lbl_model">调用模型 ID</label><input type="text" id="ai-model-id" value="qwen-plus" readonly></div>
+            <hr class="ai-panel-divider">
+            <div class="panel-header" data-i18n="context_title">📍 当前业务上下文</div>
+            <div id="ai-context-status"></div>
+
+            <hr class="ai-panel-divider is-dashed">
+            <div class="panel-header" data-i18n="nav_title">🚀 ERPNext 模块直达</div>
+            <div class="module-nav-grid">
+                <a href="/app/selling" target="_blank" class="module-icon-btn" title="前往销售模块"><span class="module-icon">🏪</span><span class="module-icon-text" data-i18n="mod_selling">销售</span></a>
+                <a href="/app/buying" target="_blank" class="module-icon-btn" title="前往采购模块"><span class="module-icon">🛍️</span><span class="module-icon-text" data-i18n="mod_buying">采购</span></a>
+                <a href="/app/stock" target="_blank" class="module-icon-btn" title="前往库存模块"><span class="module-icon">📦</span><span class="module-icon-text" data-i18n="mod_stock">库存</span></a>
+                <a href="/app/projects" target="_blank" class="module-icon-btn" title="前往项目模块"><span class="module-icon">📊</span><span class="module-icon-text" data-i18n="mod_projects">项目</span></a>
+                <a href="/app/asset" target="_blank" class="module-icon-btn" id="nav-asset-btn" title="前往资产模块"><span class="module-icon">🏢</span><span class="module-icon-text" data-i18n="mod_assets">资产</span></a>
+                <a href="/app/manufacturing" target="_blank" class="module-icon-btn" title="前往生产模块"><span class="module-icon">🏭</span><span class="module-icon-text" data-i18n="mod_mfg">生产</span></a>
+            </div>
+
+        </div>
+        <div class="ai-main-chat">
+            <div class="chat-history" id="chat-history">
+                <div class="chat-message ai"><div class="chat-bubble" id="ai-greeting-text">您好老板！我是您的专属企业智能助手。全系金刚已就位，请下达指令！</div></div>
+            </div>
+            
+            <div class="quick-actions">
+                
+                <div class="dropdown" id="finance-menu">
+                    <button class="quick-btn" data-i18n="menu_finance">💰 财务会计 ▾</button>
+                    <div class="dropdown-content">
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_fin_health" data-msg="生成一句话财务体检报告，看看公司总资产、负债和目前的利润" data-i18n="btn_fin_health">🏥 财务体检</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_fin_overdue" data-msg="帮我查一下目前有哪些客户的账款逾期了？列出催款清单" data-i18n="btn_fin_overdue">🚨 智能催款</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_fin_expense" data-msg="帮我查一下上个月各成本中心一共烧了多少钱？列出开销明细" data-i18n="btn_fin_expense">💸 成本追踪</a>
+                    </div>
+                </div>
+
+                <div class="dropdown" id="asset-menu">
+                    <button class="quick-btn" data-i18n="menu_assets">🏢 固定资产 ▾</button>
+                    <div class="dropdown-content">
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_ast_list" data-msg="帮我盘点一下公司现在的固定资产家底，总共值多少钱？列出资产清单" data-i18n="btn_ast_list">🏢 资产盘点</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_ast_value" data-msg="查一下咱们目前最值钱的5个资产是什么？看看净值和贬值情况" data-i18n="btn_ast_value">📉 资产净值</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_ast_leave" data-msg="有员工要离职了，查一下名下挂着哪些公司资产需要交接？" data-i18n="btn_ast_leave">🏃‍♂️ 离职交接</a>
+                    </div>
+                </div>
+                
+                <div class="dropdown">
+                    <button class="quick-btn" data-i18n="menu_stock">📦 进销存查询 ▾</button>
+                    <div class="dropdown-content">
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_sales_report" data-msg="帮我生成本月的销售月报及大客户贡献榜" data-i18n="btn_stk_sales_report">📊 销售月报</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_low" data-msg="帮我查一下当前库存数量低于 10 的商品" data-i18n="btn_stk_low">📦 低库存预警</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_so" data-msg="查看最近的销售订单" data-i18n="btn_stk_so">🛒 销售订单</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_si" data-msg="查看最近的销售发票" data-i18n="btn_stk_si">🧾 销售发票</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_pr" data-msg="查看最近的采购入库单" data-i18n="btn_stk_pr">📥 采购入库</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_dn" data-msg="查看最近的销售出库单" data-i18n="btn_stk_dn">🚚 销售出库</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_sq" data-msg="查看最近的供应商报价" data-i18n="btn_stk_sq">📝 供应商报价</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_po" data-msg="查看最近的采购订单" data-i18n="btn_stk_po">🛍️ 采购订单</a>
+                        <a href="#" class="quick-btn-menu" data-i18n-msg="msg_stk_pi" data-msg="查看最近的采购发票" data-i18n="btn_stk_pi">🧾 采购发票</a>
+                    </div>
+                </div>
+
+            </div>
+            
+            <div class="chat-input-area">
+                <input type="text" id="ai-user-input" class="chat-input" data-i18n="placeholder_input" placeholder="输入指令，按下发送...">
+                <button class="btn btn-primary send-btn" id="send-btn" data-i18n="btn_send">发送</button>
+            </div>
+        </div>
+    </div>
+    <div class="ai-log-panel">
+        <div class="log-header" id="log-panel-title">🖥️ 运行日志监控 (系统状态：正常)</div>
+        <div class="log-content" id="ai-log-content"></div>
+    </div>
+</div>

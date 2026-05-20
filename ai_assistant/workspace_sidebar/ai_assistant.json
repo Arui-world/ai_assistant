@@ -1,0 +1,25 @@
+{
+ "app": "ai_assistant",
+ "creation": "2026-05-18 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "sparkles",
+ "idx": 0,
+ "items": [
+  {
+   "icon": "panel-top",
+   "idx": 1,
+   "label": "企业智能业务助手",
+   "link_to": "ai-chat",
+   "link_type": "Page",
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-05-18 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "AI Assistant",
+ "name": "AI Assistant",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "AI Assistant"
+}
