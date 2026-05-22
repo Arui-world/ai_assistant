@@ -1,6 +1,7 @@
 import frappe
 import requests
 import json
+import os
 
 # =========================================================
 # 🛠️ 极其强大的本地业务工具箱 (十五大金刚 - 终极安全与权限防线版)
@@ -558,15 +559,58 @@ def get_employee_assets(employee_name=None):
     except Exception as e: 
         return {"text": f"执行员工资产追踪雷达扫描失败：{str(e)}", "data": []}
 
+def get_ai_provider_config(platform):
+    platform = (platform or "qwen").lower()
+    providers = {
+        "qwen": {
+            "label": "DashScope/Qwen",
+            "base_url": frappe.conf.get("dashscope_base_url") or os.environ.get("DASHSCOPE_BASE_URL") or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "api_key": frappe.conf.get("dashscope_api_key") or frappe.conf.get("qwen_api_key") or os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("QWEN_API_KEY"),
+            "config_hint": "dashscope_api_key",
+            "env_hint": "DASHSCOPE_API_KEY",
+        },
+        "deepseek": {
+            "label": "DeepSeek",
+            "base_url": frappe.conf.get("deepseek_base_url") or os.environ.get("DEEPSEEK_BASE_URL") or "https://api.deepseek.com/v1",
+            "api_key": frappe.conf.get("deepseek_api_key") or os.environ.get("DEEPSEEK_API_KEY"),
+            "config_hint": "deepseek_api_key",
+            "env_hint": "DEEPSEEK_API_KEY",
+        },
+        "glm4": {
+            "label": "GLM-4",
+            "base_url": frappe.conf.get("glm_base_url") or frappe.conf.get("bigmodel_base_url") or os.environ.get("GLM_BASE_URL") or os.environ.get("BIGMODEL_BASE_URL") or "https://open.bigmodel.cn/api/paas/v4",
+            "api_key": frappe.conf.get("glm_api_key") or frappe.conf.get("bigmodel_api_key") or os.environ.get("GLM_API_KEY") or os.environ.get("BIGMODEL_API_KEY"),
+            "config_hint": "glm_api_key",
+            "env_hint": "GLM_API_KEY",
+        },
+    }
+    return providers.get(platform, providers["qwen"])
+
+
+def build_ai_error_reply(provider, detail):
+    return (
+        "⚠️ 连接大脑时发生异常 / Connection Error：<br><br>"
+        f"<b>{provider['label']} {detail}</b><br><br>"
+        f"请检查站点配置 <code>{provider['config_hint']}</code> 或环境变量 <code>{provider['env_hint']}</code>。"
+    )
+
+
 # 💥 极其关键的修改：接收 JS 传来的 lang 语言参数！
 @frappe.whitelist()
 def chat(message, platform, model_id, lang="zh"):
-    API_KEY = "sk-0bdcab13594f47d881b89ea415355401"
     frappe.logger().info(f"AI 小助手接收到指令：[{message}]，准备呼叫：[{model_id}]，语言锁定为：[{lang}]")
 
     try:
-        url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-        headers = { "Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json" }
+        provider = get_ai_provider_config(platform)
+        if not provider["api_key"]:
+            return {
+                "status": "success",
+                "reply": build_ai_error_reply(provider, "缺少 API Key。"),
+                "logs": [f"{provider['label']} 缺少 API Key 配置。"]
+            }
+
+        url = f"{provider['base_url'].rstrip('/')}/chat/completions"
+        headers = { "Authorization": f"Bearer {provider['api_key']}", "Content-Type": "application/json" }
         
         common_parameters = { "type": "object", "properties": { "limit": {"type": "integer", "description": "返回数量限制"}, "start_date": {"type": "string"}, "end_date": {"type": "string"} } }
         warning_parameters = { "type": "object", "properties": { "limit": {"type": "integer"}, "threshold": {"type": "integer"} } }
@@ -739,4 +783,11 @@ def chat(message, platform, model_id, lang="zh"):
                 }
 
         return {"status": "success", "reply": response_message.get("content"), "logs": ["大模型未触发数据库查询，已获取常规智能回复！"]}
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else None
+        if status_code == 401:
+            detail = "API Key 无效、已过期或没有调用权限（401 Unauthorized）。"
+        else:
+            detail = f"接口返回 HTTP {status_code or '错误'}。"
+        return {"status": "success", "reply": build_ai_error_reply(provider, detail), "logs": [f"{provider['label']} 调用失败：{detail}"]}
     except Exception as e: return {"status": "success", "reply": f"⚠️ 连接大脑时发生异常 / Connection Error：<br><br><b>{str(e)}</b>", "logs": ["发生异常！"]}
