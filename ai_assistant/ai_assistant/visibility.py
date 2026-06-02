@@ -1,6 +1,9 @@
 import frappe
 
 
+AI_ASSISTANT_LOGO_URL = "/assets/deeplinkerp_branding/logo/AI%20Assistant_logo.png?v=erpnext-bg-067efb"
+
+
 def ensure_ai_assistant_sidebar_visible():
 	"""Keep AI Assistant visible for non-admin Desk users.
 
@@ -30,6 +33,7 @@ def ensure_ai_assistant_sidebar_visible():
 				"hidden": 0,
 				"link_to": "AI Assistant",
 				"link_type": "Workspace Sidebar",
+				"logo_url": AI_ASSISTANT_LOGO_URL,
 				"standard": 1,
 				"idx": 0,
 			},
