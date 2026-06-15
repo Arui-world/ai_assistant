@@ -19,7 +19,7 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             context_title: "📍 当前业务上下文", nav_title: "🚀 ERPNext 模块直达",
             mod_selling: "销售", mod_buying: "采购", mod_stock: "库存", mod_projects: "项目", mod_assets: "资产", mod_mfg: "生产",
             menu_finance: "💰 财务会计 ▾", menu_assets: "🏢 固定资产 ▾", menu_stock: "📦 进销存查询 ▾",
-            btn_fin_health: "🏥 财务体检", btn_fin_overdue: "🚨 智能催款", btn_fin_expense: "💸 成本追踪",
+            btn_fin_health: "🏥 财务体检", btn_fin_overdue: "🚨 智能催款", btn_fin_expense: "💸 成本追踪", btn_fin_voucher: "🧾 财务凭证生成",
             btn_ast_list: "🏢 资产盘点", btn_ast_value: "📉 资产净值", btn_ast_leave: "🏃‍♂️ 离职交接",
             btn_stk_sales_report: "📊 销售月报", btn_stk_low: "📦 低库存预警", btn_stk_so: "🛒 销售订单", btn_stk_si: "🧾 销售发票",
             btn_stk_pr: "📥 采购入库", btn_stk_dn: "🚚 销售出库", btn_stk_sq: "📝 供应商报价", btn_stk_po: "🛍️ 采购订单", btn_stk_pi: "🧾 采购发票",
@@ -30,7 +30,7 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             ctx_boss: `<div class="context-tag">模块: 销售、采购、库存、财务、资产</div><div class="context-tag">状态: 高管最高级全链路授权</div>`,
             
             msg_fin_health: "生成一句话财务体检报告，看看公司总资产、负债和目前的利润", msg_fin_overdue: "帮我查一下目前有哪些客户的账款逾期了？列出催款清单",
-            msg_fin_expense: "帮我查一下上个月各成本中心一共烧了多少钱？列出开销明细", msg_ast_list: "帮我盘点一下公司现在的固定资产家底，总共值多少钱？列出资产清单",
+            msg_fin_expense: "帮我查一下上个月各成本中心一共烧了多少钱？列出开销明细", msg_fin_voucher_upload: "请上传银行交易明细 Excel 源文件（.xlsx 或 .xls）。上传完成后，我会自动生成财务凭证报表。", btn_upload_source: "📎 上传源文件", btn_download_report: "⬇️ 下载财务报表", msg_fin_voucher_ready: "帮我根据已上传的银行交易明细源文件生成财务凭证、科目余额表、资产负债表和利润表。文件：{fileName}，路径：{fileUrl}", msg_ast_list: "帮我盘点一下公司现在的固定资产家底，总共值多少钱？列出资产清单",
             msg_ast_value: "查一下咱们目前最值钱的5个资产是什么？看看净值和贬值情况", msg_ast_leave: "有员工要离职了，查一下名下挂着哪些公司资产需要交接？",
             msg_stk_sales_report: "帮我生成本月的销售月报及大客户贡献榜", msg_stk_low: "帮我查一下当前库存数量低于 10 的商品",
             msg_stk_so: "查看最近的销售订单", msg_stk_si: "查看最近的销售发票", msg_stk_pr: "查看最近的采购入库单", msg_stk_dn: "查看最近的销售出库单",
@@ -41,6 +41,10 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             log_boss_success: "👑 识别到老板/管理员登场，系统全量金刚权限已完全解锁！",
             log_switch: "已安全切换至",
             log_export_start: "正在内存中拼装 Excel 数据格式...",
+            log_upload_source: "财务凭证生成入口已触发，等待用户上传源文件。",
+            log_upload_success: "源文件上传成功：{fileName}",
+            upload_dialog_title: "上传银行交易明细源文件",
+            upload_unavailable: "当前页面未加载文件上传组件，请刷新后重试。",
             log_export_success: "✅ 极其顺滑！[{fileName}] 已成功触发下载！",
             log_send: "接收到指令：[{text}]，正在构建安全查询上下文...",
             log_loading: "AI 正在生成精美排版中...",
@@ -53,7 +57,7 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             context_title: "📍 Current Context", nav_title: "🚀 ERPNext Shortcuts",
             mod_selling: "Selling", mod_buying: "Buying", mod_stock: "Stock", mod_projects: "Projects", mod_assets: "Assets", mod_mfg: "Mfg",
             menu_finance: "💰 Finance ▾", menu_assets: "🏢 Assets ▾", menu_stock: "📦 Inventory ▾",
-            btn_fin_health: "🏥 Financial Health", btn_fin_overdue: "🚨 Overdue Invoices", btn_fin_expense: "💸 Cost Tracking",
+            btn_fin_health: "🏥 Financial Health", btn_fin_overdue: "🚨 Overdue Invoices", btn_fin_expense: "💸 Cost Tracking", btn_fin_voucher: "🧾 Voucher Generator",
             btn_ast_list: "🏢 Asset Inventory", btn_ast_value: "📉 Asset Value", btn_ast_leave: "🏃‍♂️ Employee Handover",
             btn_stk_sales_report: "📊 Sales Report", btn_stk_low: "📦 Low Stock Alert", btn_stk_so: "🛒 Sales Orders", btn_stk_si: "🧾 Sales Invoices",
             btn_stk_pr: "📥 Purchase Receipts", btn_stk_dn: "🚚 Delivery Notes", btn_stk_sq: "📝 Supplier Quotes", btn_stk_po: "🛍️ Purchase Orders", btn_stk_pi: "🧾 Purchase Invoices",
@@ -64,7 +68,7 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             ctx_boss: `<div class="context-tag">Modules: All Modules</div><div class="context-tag">Status: Executive Full Access</div>`,
             
             msg_fin_health: "Generate a financial health report showing total assets, liabilities, and current profit.", msg_fin_overdue: "Check which customers have overdue invoices and list them.",
-            msg_fin_expense: "Check the total expenses for each cost center last month. List the details.", msg_ast_list: "Take inventory of our current fixed assets and their total value.",
+            msg_fin_expense: "Check the total expenses for each cost center last month. List the details.", msg_fin_voucher_upload: "Please upload the bank transaction Excel source file (.xlsx or .xls). After upload, I will generate the financial voucher report automatically.", btn_upload_source: "📎 Upload Source File", btn_download_report: "⬇️ Download Report", msg_fin_voucher_ready: "Generate financial vouchers, trial balance, balance sheet, and income statement from the uploaded bank transaction source file. File: {fileName}, path: {fileUrl}", msg_ast_list: "Take inventory of our current fixed assets and their total value.",
             msg_ast_value: "What are our top 5 most valuable assets? Show their net value and depreciation.", msg_ast_leave: "An employee is leaving. Check what company assets are assigned to them.",
             msg_stk_sales_report: "Generate this month's sales report and top customers.", msg_stk_low: "Check items with stock quantity below 10.",
             msg_stk_so: "Show recent Sales Orders", msg_stk_si: "Show recent Sales Invoices", msg_stk_pr: "Show recent Purchase Receipts", msg_stk_dn: "Show recent Delivery Notes",
@@ -75,6 +79,10 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             log_boss_success: "👑 Admin Access Detected. Full system capabilities unlocked!",
             log_switch: "Switched to engine",
             log_export_start: "Building CSV...",
+            log_upload_source: "Financial voucher source upload started.",
+            log_upload_success: "Source file uploaded: {fileName}",
+            upload_dialog_title: "Upload bank transaction source file",
+            upload_unavailable: "The file uploader is not loaded. Please refresh and try again.",
             log_export_success: "✅ Download triggered for [{fileName}]!",
             log_send: "Command received: [{text}], building secure context...",
             log_loading: "AI is generating formatted response...",
@@ -87,7 +95,7 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             context_title: "📍 Contexto Actual", nav_title: "🚀 Módulos ERPNext",
             mod_selling: "Ventas", mod_buying: "Compras", mod_stock: "Inventario", mod_projects: "Proyectos", mod_assets: "Activos", mod_mfg: "Fabricación",
             menu_finance: "💰 Finanzas ▾", menu_assets: "🏢 Activos Fijos ▾", menu_stock: "📦 Consultas de Inv ▾",
-            btn_fin_health: "🏥 Salud Financiera", btn_fin_overdue: "🚨 Facturas Vencidas", btn_fin_expense: "💸 Costos",
+            btn_fin_health: "🏥 Salud Financiera", btn_fin_overdue: "🚨 Facturas Vencidas", btn_fin_expense: "💸 Costos", btn_fin_voucher: "🧾 Generar Comprobantes",
             btn_ast_list: "🏢 Inventario de Activos", btn_ast_value: "📉 Valor de Activos", btn_ast_leave: "🏃‍♂️ Entrega de Empleado",
             btn_stk_sales_report: "📊 Reporte de Ventas", btn_stk_low: "📦 Alerta de Stock", btn_stk_so: "🛒 Pedidos de Venta", btn_stk_si: "🧾 Facturas de Venta",
             btn_stk_pr: "📥 Recibos de Compra", btn_stk_dn: "🚚 Notas de Entrega", btn_stk_sq: "📝 Cotizaciones", btn_stk_po: "🛍️ Pedidos de Compra", btn_stk_pi: "🧾 Facturas de Compra",
@@ -98,7 +106,7 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             ctx_boss: `<div class="context-tag">Módulos: Todos los Módulos</div><div class="context-tag">Estado: Acceso Ejecutivo Total</div>`,
             
             msg_fin_health: "Genere un informe de salud financiera que muestre los activos totales, los pasivos y las ganancias.", msg_fin_overdue: "Revise qué clientes tienen facturas vencidas y lístelos.",
-            msg_fin_expense: "Revise los gastos totales de cada centro de costos el mes pasado.", msg_ast_list: "Haga un inventario de nuestros activos fijos actuales y su valor total.",
+            msg_fin_expense: "Revise los gastos totales de cada centro de costos el mes pasado.", msg_fin_voucher_upload: "Suba el archivo fuente Excel de transacciones bancarias (.xlsx o .xls). Después de subirlo, generaré automáticamente el reporte contable.", btn_upload_source: "📎 Subir Archivo", btn_download_report: "⬇️ Descargar Reporte", msg_fin_voucher_ready: "Genere comprobantes contables, balance de comprobación, balance general y estado de resultados desde el archivo bancario cargado. Archivo: {fileName}, ruta: {fileUrl}", msg_ast_list: "Haga un inventario de nuestros activos fijos actuales y su valor total.",
             msg_ast_value: "¿Cuáles son nuestros 5 activos más valiosos? Muestre su valor neto.", msg_ast_leave: "Un empleado se va. Compruebe qué activos tiene asignados.",
             msg_stk_sales_report: "Genere el informe de ventas de este mes y los mejores clientes.", msg_stk_low: "Verifique los artículos con cantidad de stock por debajo de 10.",
             msg_stk_so: "Mostrar pedidos de venta recientes", msg_stk_si: "Mostrar facturas de venta recientes", msg_stk_pr: "Mostrar recibos de compra recientes", msg_stk_dn: "Mostrar notas de entrega recientes",
@@ -109,6 +117,10 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
             log_boss_success: "👑 ¡Acceso de administrador detectado. Capacidades completas desbloqueadas!",
             log_switch: "Cambiado al motor",
             log_export_start: "Construyendo CSV...",
+            log_upload_source: "Carga del archivo fuente para comprobantes iniciada.",
+            log_upload_success: "Archivo fuente cargado: {fileName}",
+            upload_dialog_title: "Subir archivo bancario fuente",
+            upload_unavailable: "El componente de carga no está disponible. Actualice la página e inténtelo de nuevo.",
             log_export_success: "✅ ¡Descarga iniciada para [{fileName}]!",
             log_send: "Comando recibido: [{text}], construyendo contexto...",
             log_loading: "La IA está generando el formato...",
@@ -192,6 +204,67 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
         }
     });
 
+    $wrapper.find('.quick-upload-source').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $wrapper.find('.dropdown').removeClass('show-menu');
+        renderVoucherUploadPrompt();
+    });
+
+    $wrapper.find('#chat-history').on('click', '.action-upload-btn', function(e) {
+        e.preventDefault();
+        openVoucherSourceUploader();
+    });
+
+    $wrapper.find('#chat-history').on('click', '.action-download-report-btn', function(e) {
+        e.preventDefault();
+        let targetUrl = $(this).attr('data-url');
+        if (targetUrl) window.open(targetUrl, '_blank');
+    });
+
+    function renderVoucherUploadPrompt() {
+        let history = $wrapper.find('#chat-history')[0];
+        let promptText = frappe.utils.escape_html(dict['msg_fin_voucher_upload']);
+        let uploadLabel = frappe.utils.escape_html(dict['btn_upload_source']);
+        history.innerHTML += `
+            <div class="chat-message ai">
+                <div class="chat-bubble">
+                    <div class="ai-reply-content">${promptText}</div>
+                    <div class="action-export-wrap">
+                        <button class="btn btn-primary action-upload-btn">${uploadLabel}</button>
+                    </div>
+                </div>
+            </div>`;
+        history.scrollTop = history.scrollHeight;
+        addLog(dict['log_upload_source'], 'sys');
+    }
+
+    function openVoucherSourceUploader() {
+        if (!frappe.ui || !frappe.ui.FileUploader) {
+            frappe.msgprint(dict['upload_unavailable']);
+            return;
+        }
+
+        new frappe.ui.FileUploader({
+            allow_multiple: false,
+            dialog_title: dict['upload_dialog_title'],
+            restrictions: { allowed_file_types: ['.xlsx', '.xls'] },
+            on_success: function(fileDoc) {
+                if (!fileDoc) return;
+
+                let fileName = fileDoc.file_name || fileDoc.name || '';
+                let fileUrl = fileDoc.file_url || '';
+                let readyMsg = dict['msg_fin_voucher_ready']
+                    .replace('{fileName}', fileName)
+                    .replace('{fileUrl}', fileUrl);
+
+                $wrapper.find('#ai-user-input').val(readyMsg);
+                addLog(dict['log_upload_success'].replace('{fileName}', fileName), 'success');
+                sendMessage({ silent_user_message: true });
+            }
+        });
+    }
+
     $wrapper.find('#ai-platform').on('change', function() {
         let platform = $(this).val();
         let baseUrlInput = $wrapper.find('#ai-base-url');
@@ -257,14 +330,16 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
         addLog(successMsg, 'success');
     });
 
-    function sendMessage() {
+    function sendMessage(options = {}) {
         let input = $wrapper.find('#ai-user-input')[0];
         let text = input.value.trim();
         if (!text) return;
 
         let history = $wrapper.find('#chat-history')[0];
-        const escapedText = frappe.utils.escape_html(text);
-        history.innerHTML += `<div class="chat-message user"><div class="chat-bubble">${escapedText}</div></div>`;
+        if (!options.silent_user_message) {
+            const escapedText = frappe.utils.escape_html(text);
+            history.innerHTML += `<div class="chat-message user"><div class="chat-bubble">${escapedText}</div></div>`;
+        }
         input.value = '';
 
         let sendMsg = dict['log_send'].replace('{text}', text);
@@ -295,6 +370,16 @@ frappe.pages['ai-chat'].on_page_load = function(wrapper) {
                         actionBtnHtml = `
                             <div class="action-export-wrap">
                                 <button class="btn btn-secondary action-export-btn" data-id="${actionDataId}" data-prefix="${filePrefix}">
+                                    ${btnLabel}
+                                </button>
+                            </div>
+                        `;
+                    } else if (r.message.action_button && r.message.action_button.type === 'download_file') {
+                        let reportUrl = frappe.utils.escape_html(r.message.action_button.url || '');
+                        let btnLabel = frappe.utils.escape_html(r.message.action_button.label || dict['btn_download_report']);
+                        actionBtnHtml = `
+                            <div class="action-export-wrap">
+                                <button class="btn btn-primary action-download-report-btn" data-url="${reportUrl}">
                                     ${btnLabel}
                                 </button>
                             </div>

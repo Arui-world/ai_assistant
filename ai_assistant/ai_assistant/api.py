@@ -2,6 +2,10 @@ import frappe
 import requests
 import json
 import os
+import re
+
+from .account_mapping import allowed_base_accounts
+from .voucher_generator import generate_financial_vouchers
 
 # =========================================================
 # 🛠️ 极其强大的本地业务工具箱 (十五大金刚 - 终极安全与权限防线版)
@@ -608,13 +612,202 @@ def build_ai_error_reply(provider, detail):
     )
 
 
+def extract_financial_voucher_file_url(message):
+    text = str(message or "")
+    has_intent = any(keyword in text for keyword in ["财务凭证", "凭证报表", "科目余额表", "资产负债表", "利润表", "financial voucher", "voucher"])
+    if not has_intent:
+        return None
+
+    patterns = [
+        r"路径[:：]\s*(/[^\s，,。]+)",
+        r"path[:：]\s*(/[^\s，,。]+)",
+        r"file_url[:=]\s*(/[^\s，,。]+)",
+        r"(/private/files/[^\s，,。]+)",
+        r"(/files/[^\s，,。]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def is_simple_greeting(message):
+    text = re.sub(r"[\s!！。,.，?？~～]+", "", str(message or "").lower())
+    greetings = {"你好", "您好", "hi", "hello", "hey", "在吗", "早", "早上好", "下午好", "晚上好"}
+    return text in greetings
+
+
+def build_local_greeting_reply(lang="zh"):
+    if lang == "en":
+        return "Hello. I am DeeplinkERP AI Assistant. You can ask me to query ERPNext documents, run financial checks, track costs, inspect assets, or generate financial voucher reports."
+    if lang == "es":
+        return "Hola. Soy DeeplinkERP AI Assistant. Puede pedirme consultar documentos de ERPNext, revisar finanzas, analizar costos, inspeccionar activos o generar reportes contables."
+    return "您好，我是 DeeplinkERP AI Assistant。您可以让我查询 ERPNext 单据、做财务体检、成本追踪、资产盘点，或上传银行流水生成财务凭证报表。"
+
+
+def should_attach_erp_tools(message):
+    text = str(message or "").lower()
+    keywords = [
+        "销售", "订单", "发票", "采购", "入库", "出库", "库存", "供应商", "报价", "月报",
+        "催款", "逾期", "财务", "资产", "成本", "支出", "利润", "负债", "低库存",
+        "sales", "invoice", "purchase", "stock", "inventory", "asset", "cost", "overdue", "report",
+    ]
+    return any(keyword in text for keyword in keywords)
+
+
+def _configured_timeout(key, default):
+    try:
+        return int(frappe.conf.get(key) or default)
+    except Exception:
+        return default
+
+
+def ai_chat_timeout():
+    return _configured_timeout("ai_assistant_chat_timeout", 45)
+
+
+def ai_tool_summary_timeout():
+    return _configured_timeout("ai_assistant_tool_summary_timeout", 60)
+
+
+def ai_voucher_classification_timeout():
+    return _configured_timeout("ai_assistant_voucher_timeout", 180)
+
+
+def parse_model_json_array(content):
+    text = str(content or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+    start = text.find("[")
+    end = text.rfind("]")
+    if start >= 0 and end > start:
+        text = text[start:end + 1]
+    parsed = json.loads(text)
+    if not isinstance(parsed, list):
+        raise ValueError("模型没有返回 JSON 数组。")
+    return parsed
+
+
+def build_financial_voucher_ai_classifier(provider, selected_model):
+    if not provider.get("api_key"):
+        return None
+
+    def classify(candidates):
+        if not candidates:
+            return {}
+
+        url = f"{provider['base_url'].rstrip('/')}/chat/completions"
+        headers = {"Authorization": f"Bearer {provider['api_key']}", "Content-Type": "application/json"}
+        allowed_accounts = allowed_base_accounts()
+        system_prompt = (
+            "你是中国小企业会计凭证分类助手。只根据银行交易摘要、用途、对方单位、对方账号、方向和金额判断会计科目。"
+            "必须返回严格 JSON 数组，不要 Markdown，不要解释。"
+            '每项格式：{"id": string, "debit_account": string, "credit_account": string, "confidence": number, "reason": string}。'
+            "允许使用基础科目或带明细的子科目，例如 管理费用-办公费、应付账款-某公司、其他应付款-某人。"
+            "支出 direction=out 时贷方必须是 银行存款；收入 direction=in 时借方必须是 银行存款。"
+            f"基础科目只能来自：{', '.join(allowed_accounts)}。"
+            "无法确定时使用 fallback_debit_account/fallback_credit_account，并把 confidence 设为 0.5。"
+        )
+        payload = {
+            "model": selected_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(candidates[:40], ensure_ascii=False)},
+            ],
+            "temperature": 0.1,
+        }
+        response = requests.post(url, headers=headers, json=payload, timeout=ai_voucher_classification_timeout())
+        response.raise_for_status()
+        result_json = response.json()
+        content = result_json["choices"][0]["message"].get("content", "")
+        rows = parse_model_json_array(content)
+
+        suggestions = {}
+        candidate_ids = {item["id"] for item in candidates}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            item_id = row.get("id")
+            if item_id in candidate_ids:
+                suggestions[item_id] = row
+        return suggestions
+
+    return classify
+
+
+@frappe.whitelist()
+def generate_financial_voucher_report(file_url, platform="qwen", model_id=None):
+    user_roles = frappe.get_roles(frappe.session.user)
+    is_boss = frappe.session.user == "Administrator" or "Administrator" in user_roles or "System Manager" in user_roles
+    if not is_boss:
+        frappe.throw("当前账号无权生成财务凭证报表。")
+
+    provider = get_ai_provider_config(platform)
+    selected_model = provider.get("model") or model_id or provider.get("default_model")
+    ai_classifier = build_financial_voucher_ai_classifier(provider, selected_model)
+    return generate_financial_vouchers(file_url, ai_classifier=ai_classifier)
+
+
+def build_financial_voucher_response(tool_result, ai_classifier=None, provider_label=None, called_by_model=False):
+    ai_log = (
+        f"AI辅助判断采纳 {tool_result.get('ai_applied_count', 0)}/{tool_result.get('ai_candidate_count', 0)} 条。"
+        if ai_classifier else f"{provider_label or '当前模型'} 未配置 API Key，已使用规则兜底生成。"
+    )
+    logs = [
+        "财务凭证生成工具执行成功。",
+        ai_log,
+        f"识别交易 {tool_result['transaction_count']} 笔，生成分录 {tool_result['voucher_row_count']} 行。"
+    ]
+    if called_by_model:
+        logs.insert(0, "大模型调用了：generate_financial_voucher_report。")
+
+    return {
+        "status": "success",
+        "reply": tool_result["text"],
+        "action_button": {
+            "type": "download_file",
+            "label": "⬇️ 下载财务报表",
+            "url": tool_result.get("file_url"),
+            "file_name": tool_result.get("file_name"),
+        },
+        "logs": logs
+    }
+
+
 # 💥 极其关键的修改：接收 JS 传来的 lang 语言参数！
 @frappe.whitelist()
 def chat(message, platform, model_id, lang="zh"):
     frappe.logger().info(f"AI 小助手接收到指令：[{message}]，准备呼叫：[{model_id}]，语言锁定为：[{lang}]")
 
     try:
+        user_roles = frappe.get_roles(frappe.session.user)
+        is_boss = frappe.session.user == "Administrator" or "Administrator" in user_roles or "System Manager" in user_roles
+
+        if is_simple_greeting(message):
+            return {
+                "status": "success",
+                "reply": build_local_greeting_reply(lang),
+                "logs": ["本地快速回复：寒暄消息未调用外部大模型。"]
+            }
+
         provider = get_ai_provider_config(platform)
+        selected_model = provider.get("model") or model_id or provider.get("default_model")
+
+        voucher_file_url = extract_financial_voucher_file_url(message)
+
+        # 没有 API Key 时，大模型无法选择工具；明确的凭证生成请求走确定性兜底。
+        if voucher_file_url and not provider["api_key"]:
+            if not is_boss:
+                return {
+                    "status": "success",
+                    "reply": "⚠️ 抱歉，您的账号当前无权访问该机密业务模块。",
+                    "logs": ["后端权限拦截：当前用户无权生成财务凭证报表。"]
+                }
+            tool_result = generate_financial_vouchers(voucher_file_url, ai_classifier=None)
+            return build_financial_voucher_response(tool_result, ai_classifier=None, provider_label=provider["label"])
+
         if not provider["api_key"]:
             return {
                 "status": "success",
@@ -632,6 +825,16 @@ def chat(message, platform, model_id, lang="zh"):
         report_parameters = { "type": "object", "properties": { "target_month": {"type": "string", "description": "YYYY-MM"} } }
         overdue_parameters = { "type": "object", "properties": { "limit": {"type": "integer"} } }
         expense_parameters = { "type": "object", "properties": { "target_month": {"type": "string", "description": "YYYY-MM"}, "cost_center": {"type": "string", "description": "成本中心名称，例如 'jd-test'"}, "limit": {"type": "integer"} } }
+        voucher_parameters = {
+            "type": "object",
+            "properties": {
+                "file_url": {
+                    "type": "string",
+                    "description": "用户上传的银行交易明细 Excel 文件路径或 URL，例如 /private/files/bank.xlsx"
+                }
+            },
+            "required": ["file_url"]
+        }
 
         # =========================================================
         # 🛡️ 极其极其霸气的后端 RBAC 拦截防线（釜底抽薪大法！）
@@ -654,13 +857,15 @@ def chat(message, platform, model_id, lang="zh"):
             {"type": "function", "function": {"name": "get_cost_center_expenses", "description": "当用户要求查询某个成本中心的花销、支出、烧钱情况或各项开销明细时调用", "parameters": expense_parameters}},
             {"type": "function", "function": {"name": "get_asset_inventory_snapshot", "description": "当用户要求查询公司固定资产、盘点家底、查看资产总值或资产清单时调用。不需要任何参数。", "parameters": {"type": "object", "properties": {}}}},
             {"type": "function", "function": {"name": "get_top_valuable_assets", "description": "当用户要求查询最值钱的资产、资产净值排行榜、资产贬值情况、剩余价值时调用。", "parameters": {"type": "object", "properties": {"limit": {"type": "integer"}}}}},
-            {"type": "function", "function": {"name": "get_employee_assets", "description": "当用户要求查询某个员工名下资产、离职交接资产核查、员工保管的设备时调用。", "parameters": {"type": "object", "properties": {"employee_name": {"type": "string", "description": "要查询的员工名字，例如 '张三'"}}}}}
+            {"type": "function", "function": {"name": "get_employee_assets", "description": "当用户要求查询某个员工名下资产、离职交接资产核查、员工保管的设备时调用。", "parameters": {"type": "object", "properties": {"employee_name": {"type": "string", "description": "要查询的员工名字，例如 '张三'"}}}}},
+            {"type": "function", "function": {"name": "generate_financial_voucher_report", "description": "当用户上传银行交易明细 Excel 并要求生成财务凭证、科目余额表、资产负债表或利润表时调用。必须把用户消息中的文件路径作为 file_url 传入。", "parameters": voucher_parameters}}
         ]
 
         # 🌟 定义机密功能名单
         restricted_functions = [
             "get_overdue_sales_invoices", "get_financial_health_summary", "get_cost_center_expenses",
-            "get_asset_inventory_snapshot", "get_top_valuable_assets", "get_employee_assets"
+            "get_asset_inventory_snapshot", "get_top_valuable_assets", "get_employee_assets",
+            "generate_financial_voucher_report"
         ]
 
         # 🌟 动态过滤！如果不是老板，直接把机密工具没收！
@@ -693,9 +898,11 @@ def chat(message, platform, model_id, lang="zh"):
             {"role": "user", "content": message}
         ]
         
-        payload = { "model": selected_model, "messages": messages, "tools": tools, "tool_choice": "auto" }
+        payload = { "model": selected_model, "messages": messages }
+        if should_attach_erp_tools(message):
+            payload.update({"tools": tools, "tool_choice": "auto"})
 
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        response = requests.post(url, headers=headers, json=payload, timeout=ai_chat_timeout())
         response.raise_for_status() 
         result_json = response.json()
         response_message = result_json["choices"][0]["message"]
@@ -715,7 +922,8 @@ def chat(message, platform, model_id, lang="zh"):
                 "get_recent_sales_orders", "get_recent_sales_invoices", "get_recent_purchase_receipts", "get_recent_delivery_notes",
                 "get_recent_supplier_quotations", "get_recent_purchase_orders", "get_recent_purchase_invoices",
                 "get_low_stock_warnings", "generate_sales_monthly_report", "get_overdue_sales_invoices", "get_financial_health_summary",
-                "get_cost_center_expenses", "get_asset_inventory_snapshot", "get_top_valuable_assets", "get_employee_assets"
+                "get_cost_center_expenses", "get_asset_inventory_snapshot", "get_top_valuable_assets", "get_employee_assets",
+                "generate_financial_voucher_report"
             ]
             
             if function_name in valid_functions:
@@ -742,6 +950,22 @@ def chat(message, platform, model_id, lang="zh"):
                 elif function_name == "get_asset_inventory_snapshot": tool_result, file_prefix = get_asset_inventory_snapshot(), "ERPNext_Asset_Inventory"
                 elif function_name == "get_top_valuable_assets": tool_result, file_prefix = get_top_valuable_assets(args.get("limit", 5)), "ERPNext_Top_Assets"
                 elif function_name == "get_employee_assets": tool_result, file_prefix = get_employee_assets(args.get("employee_name")), f"ERPNext_Employee_Assets"
+                elif function_name == "generate_financial_voucher_report":
+                    file_url = args.get("file_url") or voucher_file_url
+                    if not file_url:
+                        return {
+                            "status": "success",
+                            "reply": "请先上传银行交易明细 Excel 源文件，然后再生成财务凭证报表。",
+                            "logs": ["大模型调用财务凭证工具但未提供 file_url。"]
+                        }
+                    ai_classifier = build_financial_voucher_ai_classifier(provider, selected_model)
+                    tool_result = generate_financial_vouchers(file_url, ai_classifier=ai_classifier)
+                    return build_financial_voucher_response(
+                        tool_result,
+                        ai_classifier=ai_classifier,
+                        provider_label=provider["label"],
+                        called_by_model=True,
+                    )
 
                 messages.append(response_message)
                 messages.append({"role": "tool", "tool_call_id": tool_call_id, "name": function_name, "content": tool_result["text"]})
@@ -750,7 +974,7 @@ def chat(message, platform, model_id, lang="zh"):
                 payload.pop("tools", None)
                 payload.pop("tool_choice", None)
                 
-                second_response = requests.post(url, headers=headers, json=payload, timeout=60)
+                second_response = requests.post(url, headers=headers, json=payload, timeout=ai_tool_summary_timeout())
                 second_response.raise_for_status()
                 second_result_json = second_response.json()
                 final_reply = second_result_json["choices"][0]["message"]["content"]
@@ -810,6 +1034,22 @@ def chat(message, platform, model_id, lang="zh"):
                     "action_button": { "type": "export_excel", "label": "⬇️ Export Data / 导出数据", "data": export_data, "file_prefix": file_prefix },
                     "logs": ["后端 Python 接口触发成功！", f"大模型调用了：{function_name}。"]
                 }
+
+        # 模型漏调工具时保留确定性兜底，避免用户上传文件后没有报表输出。
+        if voucher_file_url:
+            if not is_boss:
+                return {
+                    "status": "success",
+                    "reply": "⚠️ 抱歉，您的账号当前无权访问该机密业务模块。",
+                    "logs": ["后端权限拦截：当前用户无权生成财务凭证报表。"]
+                }
+            ai_classifier = build_financial_voucher_ai_classifier(provider, selected_model)
+            tool_result = generate_financial_vouchers(voucher_file_url, ai_classifier=ai_classifier)
+            return build_financial_voucher_response(
+                tool_result,
+                ai_classifier=ai_classifier,
+                provider_label=provider["label"],
+            )
 
         return {"status": "success", "reply": response_message.get("content"), "logs": ["大模型未触发数据库查询，已获取常规智能回复！"]}
     except requests.exceptions.HTTPError as e:

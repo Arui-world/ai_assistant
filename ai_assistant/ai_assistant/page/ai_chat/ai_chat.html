@@ -58,7 +58,9 @@
     .ai-reply-content a:hover { border-bottom-color: var(--primary); }
 
     .action-export-wrap { margin-top: var(--margin-md); border-top: 1px dashed var(--border-color); padding-top: var(--padding-sm); }
-    .action-export-btn { display: inline-flex; align-items: center; gap: var(--margin-xs); }
+    .action-export-btn, .action-upload-btn, .action-download-report-btn { display: inline-flex; align-items: center; gap: var(--margin-xs); }
+    .action-upload-btn { margin-top: var(--margin-xs); }
+    .action-download-report-btn { font-weight: 600; }
 
     @media (max-width: 991px) {
         .ai-app-wrapper { height: auto; min-height: 0; }
@@ -111,6 +113,7 @@
                         <a href="#" class="quick-btn-menu" data-i18n-msg="msg_fin_health" data-msg="生成一句话财务体检报告，看看公司总资产、负债和目前的利润" data-i18n="btn_fin_health">🏥 财务体检</a>
                         <a href="#" class="quick-btn-menu" data-i18n-msg="msg_fin_overdue" data-msg="帮我查一下目前有哪些客户的账款逾期了？列出催款清单" data-i18n="btn_fin_overdue">🚨 智能催款</a>
                         <a href="#" class="quick-btn-menu" data-i18n-msg="msg_fin_expense" data-msg="帮我查一下上个月各成本中心一共烧了多少钱？列出开销明细" data-i18n="btn_fin_expense">💸 成本追踪</a>
+                        <a href="#" class="quick-upload-source" data-i18n="btn_fin_voucher">🧾 财务凭证生成</a>
                     </div>
                 </div>
 
